@@ -1,13 +1,14 @@
 package com.pear;
 
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class DatabaseConnection {
     private Connection db_conn;
 
-    /** Connect to Database **/
+    /**
+     * Connect to Database
+     **/
     public DatabaseConnection() {
         try {
             String dbURL = "jdbc:sqlserver://localhost:1433;databaseName=ExsitecPear";
@@ -25,11 +26,13 @@ public class DatabaseConnection {
         }
     }
 
-    /** Get Products, Storage Units, and Balance **/
+    /**
+     * Get Products, Storage Units, and Balance
+     **/
     public List<Product> getProducts() {
         List<Product> productList = new ArrayList<>();
         String query = "SELECT ProductID, Item, Price FROM Products";
-        try (Statement stmt = db_conn.createStatement()){
+        try (Statement stmt = db_conn.createStatement()) {
             ResultSet rs = stmt.executeQuery(query);
             while (rs.next()) {
                 String productID = rs.getString("ProductID");
@@ -40,13 +43,13 @@ public class DatabaseConnection {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-    return productList;
+        return productList;
     }
 
     public List<StorageUnit> getStorageUnits() {
         List<StorageUnit> storageUnitList = new ArrayList<>();
-        String query = "SELECT StorageUnitID, City FROM Storages";
-        try (Statement stmt = db_conn.createStatement()){
+        String query = "SELECT * FROM Storages";
+        try (Statement stmt = db_conn.createStatement()) {
             ResultSet rs = stmt.executeQuery(query);
             while (rs.next()) {
                 int storageUnitID = rs.getInt("StorageUnitID");
@@ -59,9 +62,27 @@ public class DatabaseConnection {
         return storageUnitList;
     }
 
-    public List<Array> getCurrentBalance() {
-        List<Array> storageBalance = new ArrayList<>();
-        // Get the current storage balance by calculating InStock vs Reserved
+    public List<BalanceStorage> getCurrentBalance() {
+        List<BalanceStorage> storageBalance = new ArrayList<>();
+        String query = "SELECT * FROM Balance " +
+                "LEFT JOIN Storages ON Balance.StorageUnitID=Storages.StorageUnitID " +
+                "LEFT JOIN Products ON Balance.ProductID=Products.ProductID";
+        try (Statement st = db_conn.createStatement()) {
+            ResultSet rs = st.executeQuery(query);
+            while (rs.next()) {
+                StorageUnit storageUnit = new StorageUnit(rs.getInt("StorageUnitID"),
+                        rs.getString("City"));
+                Product product = new Product(rs.getString("ProductID"),
+                        rs.getString("Item"),
+                        rs.getInt("price"));
+                int inStock = rs.getInt("InStock");
+                int reserved = rs.getInt("Reserved");
+                int incoming = rs.getInt("Incoming");
+                storageBalance.add(new BalanceStorage(storageUnit, product, inStock, reserved, incoming));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return storageBalance;
     }
 
@@ -71,8 +92,16 @@ public class DatabaseConnection {
         return incomingAmount;
     }
 
+    public List<Order> getIncompleteOrders() {
+        List<Order> incompleteOrders = new ArrayList<>();
+        // Get all of the incomplete orders.
+        return incompleteOrders;
+    }
 
-    /** Order Creation **/
+
+    /**
+     * Order Creation
+     **/
     public boolean createNewOrder(int amount, Product product, StorageUnit storageUnit) {
         if (checkStorageItems(amount, product, storageUnit)) {
             System.out.println("Creating order");
@@ -88,12 +117,28 @@ public class DatabaseConnection {
         return true;
     }
 
-    /** Handling Outgoing Items **/
+    /**
+     * Order Cancellation
+     **/
+    public void cancelOrder(int orderID) {
+        String query = "DELETE FROM Orders WHERE OrderID =" + orderID;
+        try (Statement st = db_conn.createStatement()) {
+            st.executeQuery(query);
+            System.out.println("Deleted order with ID: " + orderID);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Handling Outgoing Items
+     **/
     public List<Order> getReservedOrders() {
         List<Order> reservedOrders = new ArrayList<>();
         // Get the orders with negative amount which have status Reserved
         return reservedOrders;
     }
+
     public boolean takeOutReservedOrder() {
         /* Select order among status Reserved and take it out of storage,
         marking the order as done and remove the amount from reserved and
@@ -101,7 +146,9 @@ public class DatabaseConnection {
         return true;
     }
 
-    /** Handling Incoming Stock **/
+    /**
+     * Handling Incoming Stock
+     **/
     public List<Order> getIncomingOrders() {
         List<Order> incomingOrders = new ArrayList<>();
         // Get the orders with positive amount which have status Incoming
