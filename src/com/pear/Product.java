@@ -2,12 +2,12 @@ package com.pear;
 
 public class Product {
     private String productID;
-    private String description;
+    private String item;
     private int price;
 
     public Product(String productID, String description, int price) {
         this.productID = productID;
-        this.description = description;
+        this.item = description;
         this.price = price;
     }
 
@@ -15,8 +15,8 @@ public class Product {
         return productID;
     }
 
-    public String getDescription() {
-        return description;
+    public String getItem() {
+        return item;
     }
 
     public int getPrice() {

@@ -4,9 +4,10 @@ public class Main {
 
     public static void main(String[] args) {
         Menu menu = new Menu();
-        boolean runApp;
-        do {
-            runApp = menu.printMenu();
-        } while (runApp);
+        menu.printCurrentBalance();
+//        boolean runApp;
+//        do {
+//            runApp = menu.printMenu();
+//        } while (runApp);
     }
 }

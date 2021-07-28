@@ -7,13 +7,15 @@ public class Order {
     private String userID;
     private java.sql.Timestamp date;
     private Product product;
+    private int amount;
     private StorageUnit storageUnit;
 
-    public Order(int orderID, String userID, Timestamp date, Product product, StorageUnit storageUnit) {
+    public Order(int orderID, String userID, Timestamp date, Product product, int amount, StorageUnit storageUnit) {
         this.orderID = orderID;
         this.userID = userID;
         this.date = date;
         this.product = product;
+        this.amount = amount;
         this.storageUnit = storageUnit;
     }
 
@@ -31,6 +33,10 @@ public class Order {
 
     public Product getProduct() {
         return product;
+    }
+
+    public int getAmount() {
+        return amount;
     }
 
     public StorageUnit getStorageUnit() {
