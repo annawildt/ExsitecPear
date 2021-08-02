@@ -2,13 +2,12 @@ package com.pear;
 
 import java.sql.*;
 import java.util.*;
+import java.util.Date;
 
 public class DatabaseConnection {
     private Connection db_conn;
 
-    /**
-     * Connect to Database
-     **/
+    /** Connect to Database **/
     public DatabaseConnection() {
         try {
             String dbURL = "jdbc:sqlserver://localhost:1433;databaseName=ExsitecPear";
@@ -20,20 +19,19 @@ public class DatabaseConnection {
                 System.out.println("Driver version: " + dm.getDriverVersion());
                 System.out.println("Product name: " + dm.getDatabaseProductName());
                 System.out.println("Product version: " + dm.getDatabaseProductVersion());
+                System.out.println("----------------------------------------------------------------");
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    /**
-     * Get Products, Storage Units, and Balance
-     **/
+    /** Get Products, Storage Units, Balance, and Order list **/
     public List<Product> getProducts() {
         List<Product> productList = new ArrayList<>();
         String query = "SELECT ProductID, Item, Price FROM Products";
-        try (Statement stmt = db_conn.createStatement()) {
-            ResultSet rs = stmt.executeQuery(query);
+        try (Statement st = db_conn.createStatement()) {
+            ResultSet rs = st.executeQuery(query);
             while (rs.next()) {
                 String productID = rs.getString("ProductID");
                 String description = rs.getString("Item");
@@ -86,79 +84,193 @@ public class DatabaseConnection {
         return storageBalance;
     }
 
-    public List<Array> getIncomingAmount() {
-        List<Array> incomingAmount = new ArrayList<>();
-        // Get the incoming amount per storage and item
-        return incomingAmount;
-    }
-
     public List<Order> getIncompleteOrders() {
         List<Order> incompleteOrders = new ArrayList<>();
-        // Get all of the incomplete orders.
+        String query = "SELECT * FROM Orders " +
+                "LEFT JOIN Storages ON Orders.StorageID = Storages.StorageUnitID " +
+                "LEFT JOIN Products ON Orders.ProductID = Products.ProductID " +
+                "LEFT JOIN OrderStatus ON Orders.StatusID = OrderStatus.StatusID " +
+                "WHERE Orders.StatusID != 1 AND Orders.StatusID != 3";
+        try (Statement st = db_conn.createStatement()) {
+            ResultSet rs = st.executeQuery(query);
+            while (rs.next()) {
+                incompleteOrders.add(new Order(
+                        rs.getInt("OrderID"),
+                        rs.getString("UserID"),
+                        rs.getDate("Date"),
+                        (new Product(
+                                rs.getString("ProductID"),
+                                rs.getString("Item"),
+                                rs.getInt("Price"))),
+                        rs.getInt("Amount"),
+                        (new StorageUnit(
+                                rs.getInt("StorageUnitID"),
+                                rs.getString("City"))),
+                        rs.getString("StatusName")
+                ));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return incompleteOrders;
     }
 
+    /** Order Creation **/
+    public void createNewOrder(int amount, Product product, StorageUnit storageUnit) {
+        String userID = "Placeholder";
+        java.sql.Timestamp sqlDate = new java.sql.Timestamp(new Date().getTime());
+        String query;
+        int reserved = 2;
+        int incoming = 4;
 
-    /**
-     * Order Creation
-     **/
-    public boolean createNewOrder(int amount, Product product, StorageUnit storageUnit) {
-        if (checkStorageItems(amount, product, storageUnit)) {
-            System.out.println("Creating order");
+        if (amount > 0) {
+            query = "INSERT INTO Orders (UserID, Date, ProductID, StorageID, Amount, StatusID) "
+                    + "VALUES ('" + userID + "', '" + sqlDate + "', "
+                    + "'" + product.getProductID() + "', " + storageUnit.getStorageUnitID() + ", "
+                    + amount + ", " + incoming + ");";
         } else {
-            return false;
+            query = "INSERT INTO Orders (UserID, Date, ProductID, StorageID, Amount, StatusID) "
+                    + "VALUES ('" + userID + "', '" + sqlDate + "', "
+                    + "'" + product.getProductID() + "', " + storageUnit.getStorageUnitID() + ", "
+                    + amount + ", " + reserved + ");";
+        }
+        try (Statement statement = db_conn.createStatement()) {
+            statement.executeUpdate(query);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        updateBalanceNewOrder(amount, product, storageUnit);
+    }
+
+    public void updateBalanceNewOrder(int amount, Product product, StorageUnit storageUnit) {
+        String query;
+        List<BalanceStorage> storageBalance = getCurrentBalance();
+        int storageUnitID = storageUnit.getStorageUnitID();
+        String productID = product.getProductID();
+        int currentReserved = 0;
+        int currentIncoming = 0;
+        for (BalanceStorage balance : storageBalance) {
+            if (balance.getStorageUnit().getStorageUnitID() == storageUnitID
+                    && balance.getProduct().getProductID().equals(productID)) {
+                currentReserved = balance.getReserved();
+                currentIncoming = balance.getIncoming();
+                break;
+            }
+        }
+        if (amount < 0) {
+            query = "UPDATE Balance" +
+                    " SET Reserved = " + (currentReserved + amount)
+                    + " WHERE StorageUnitID = " + storageUnitID
+                    + " AND ProductID = '" + productID + "'";
+        } else {
+            query = "UPDATE Balance " +
+                    " SET Incoming = " + (currentIncoming + amount)
+                    + " WHERE StorageUnitID = " + storageUnitID
+                    + " AND ProductID = '" + productID + "'";
+        }
+        try (Statement st = db_conn.createStatement()) {
+            st.executeUpdate(query);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        System.out.println("------------------------------");
+    }
+
+    /**  Order Cancellation **/
+    public void cancelOrder(Order cancelOrder) {
+        List<BalanceStorage> storageBalance = getCurrentBalance();
+        int storageUnitID = cancelOrder.getStorageUnit().getStorageUnitID();
+        String productID = cancelOrder.getProduct().getProductID();
+        int currentReserved = 0;
+        int currentIncoming = 0;
+        for (BalanceStorage balance : storageBalance) {
+            if (balance.getStorageUnit().getStorageUnitID() == storageUnitID
+                    && balance.getProduct().getProductID().equals(productID)) {
+                currentReserved = balance.getReserved();
+                currentIncoming = balance.getIncoming();
+                break;
+            }
         }
 
-        return true;
-    }
-
-    public boolean checkStorageItems(int amount, Product product, StorageUnit storageUnit) {
-        // Check if the amount of product is available in storage
-        return true;
-    }
-
-    /**
-     * Order Cancellation
-     **/
-    public void cancelOrder(int orderID) {
-        String query = "DELETE FROM Orders WHERE OrderID =" + orderID;
+        String cancelQuery = "UPDATE Orders " +
+                "SET StatusID = 3 " +
+                "WHERE OrderID =" + cancelOrder.getOrderID();
+        String updateQuery;
+        if (cancelOrder.getAmount() > 0) {
+            updateQuery = "UPDATE Balance" +
+                    " SET Incoming = " + (currentIncoming - cancelOrder.getAmount())
+                    + " WHERE StorageUnitID = " + storageUnitID
+                    + " AND ProductID = '" + productID + "'";
+        } else {
+            updateQuery = "UPDATE Balance" +
+                    " SET Reserved = " + (currentReserved - cancelOrder.getAmount())
+                    + " WHERE StorageUnitID = " + storageUnitID
+                    + " AND ProductID = '" + productID + "'";
+        }
         try (Statement st = db_conn.createStatement()) {
-            st.executeQuery(query);
-            System.out.println("Deleted order with ID: " + orderID);
+            st.execute(cancelQuery);
+            System.out.println("Cancelled order with ID: " + cancelOrder.getOrderID());
+            st.execute(updateQuery);
+            System.out.println("Updated Balance.");
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    /**
-     * Handling Outgoing Items
-     **/
-    public List<Order> getReservedOrders() {
-        List<Order> reservedOrders = new ArrayList<>();
-        // Get the orders with negative amount which have status Reserved
-        return reservedOrders;
+    /** Handling Orders **/
+    public void orderHandlingUpdates(Order order) {
+        List<BalanceStorage> currentBalance = getCurrentBalance();
+        int inStock = 0;
+        int reserved = 0;
+        int incoming = 0;
+        for (BalanceStorage balance : currentBalance) {
+            if (balance.getProduct().getProductID().equals(order.getProduct().getProductID())
+                    && balance.getStorageUnit().getStorageUnitID() == order.getStorageUnit().getStorageUnitID()) {
+                inStock = balance.getInStock();
+                reserved = balance.getReserved();
+                incoming = balance.getIncoming();
+            }
+        }
+
+        String updateOrder = "UPDATE Orders " +
+                "SET StatusID = 1 " +
+                "WHERE OrderID = " + order.getOrderID();
+        String updateInStock = "UPDATE Balance" +
+                " SET InStock = " + (inStock + order.getAmount()) +
+                " WHERE ProductID = '" + order.getProduct().getProductID() +
+                "' AND StorageUnitID = " + order.getStorageUnit().getStorageUnitID();
+
+        try (Statement st = db_conn.createStatement()){
+            st.execute(updateOrder);
+            System.out.println("Updated order " + order.getOrderID());
+
+            st.execute(updateInStock);
+            System.out.println("Updated InStock for " + order.getStorageUnit().getCity()
+            + ". Current amount: " + (inStock + order.getAmount()));
+
+            if (order.getAmount() < 0) {
+                String updateBalanceReserved = "UPDATE Balance " +
+                        "SET Reserved = " + (reserved - order.getAmount()) +
+                        " WHERE ProductID = '" + order.getProduct().getProductID() +
+                        "' AND StorageUnitID = " + order.getStorageUnit().getStorageUnitID();
+                st.execute(updateBalanceReserved);
+                System.out.println("Updated Reserved for " + order.getStorageUnit().getCity()
+                        + ". Current Reserved: " + "");
+            } else {
+                String updateBalanceIncoming = "UPDATE Balance " +
+                        "SET Incoming = " + (incoming - order.getAmount()) +
+                        " WHERE ProductID = '" + order.getProduct().getProductID() +
+                        "' AND StorageUnitID = " + order.getStorageUnit().getStorageUnitID();
+                st.execute(updateBalanceIncoming);
+                System.out.println("Updated Incoming for " + order.getStorageUnit().getCity()
+                        + ". Current Incoming: " + "");
+            }
+        } catch(SQLException e) {
+            e.printStackTrace();
+        }
     }
 
-    public boolean takeOutReservedOrder() {
-        /* Select order among status Reserved and take it out of storage,
-        marking the order as done and remove the amount from reserved and
-        remove the same amount from Balance InStock*/
-        return true;
-    }
-
-    /**
-     * Handling Incoming Stock
-     **/
-    public List<Order> getIncomingOrders() {
-        List<Order> incomingOrders = new ArrayList<>();
-        // Get the orders with positive amount which have status Incoming
-        return incomingOrders;
-    }
-
-    public boolean receiveIncomingOrder() {
-        /* Select order among status Incoming and put into storage,
-        marking the order as done and remove the amount from incoming and
-        add the same amount from Balance InStock*/
-        return true;
+    public void closeConnection() throws SQLException {
+        db_conn.close();
     }
 }
