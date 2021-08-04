@@ -20,9 +20,10 @@ public class Menu {
         System.out.println("Choose an option from the menu:");
         System.out.println("1. View current storage balance.");
         System.out.println("2. Create order.");
-        System.out.println("3. Send order from storage.");
-        System.out.println("4. Receive order to storage.");
-        System.out.println("5. Cancel order.");
+        System.out.println("3. View incomplete orders.");
+        System.out.println("4. Send order from storage.");
+        System.out.println("5. Receive order to storage.");
+        System.out.println("6. Cancel order.");
         System.out.println("0. Quit");
         System.out.println("-------------------------------------");
         return inputMenuOption();
@@ -44,14 +45,17 @@ public class Menu {
                 createOrder();
                 break;
             case 3:
+                printOrders(db_conn.getIncompleteOrders());
+                break;
+            case 4:
                 System.out.println("Send an order which is marked as Reserved from the storage.");
                 handleOrder(true);
                 break;
-            case 4:
+            case 5:
                 System.out.println("Receive an incoming order to the storage.");
                 handleOrder(false);
                 break;
-            case 5:
+            case 6:
                 cancelOrder();
                 break;
             default:
@@ -61,7 +65,7 @@ public class Menu {
         return continueMenu;
     }
 
-    /** View balance **/
+    /** View balance and orders**/
     public void printCurrentBalance() {
         List<BalanceStorage> storageBalance = db_conn.getCurrentBalance();
         for (BalanceStorage baSt : storageBalance) {
@@ -158,7 +162,7 @@ public class Menu {
             }
         }
         if (addToStorage) {
-            System.out.println("Creating order: " + product.getItem() + " - Amount: " +
+            System.out.println("Creating order: " + product.getItem() + " " +
                     amount + " to storage " + storageUnitsList.get(storageOption).getCity());
             db_conn.createNewOrder(amount, product, storageUnitsList.get(storageOption));
         } else {
@@ -216,43 +220,43 @@ public class Menu {
     /** Cancel order **/
     public void cancelOrder() {
         List<Order> incompleteOrders = db_conn.getIncompleteOrders();
-
-        System.out.println("Orders not yet processed:");
-        printOrders(incompleteOrders);
-
         if (!(incompleteOrders.isEmpty())) {
+            System.out.println("Orders not yet processed:");
+            printOrders(incompleteOrders);
+
             System.out.println("Enter the order ID of the order you wish to cancel or 0 to stop cancellation:");
             int orderID = userInputInteger();
-
             if (orderID != 0) {
-                while (!checkCancelOrder(orderID, incompleteOrders)) {
+                Order orderToCancel = findOrder(orderID, incompleteOrders);
+                while (orderToCancel == null) {
                     System.out.println("Order not found. Please enter a valid Order ID or 0 to quit:");
                     orderID = userInputInteger();
-                    if (orderID == 0) {
+                    if (orderID == 0)
                         break;
-                    } else if (checkCancelOrder(orderID, incompleteOrders)) {
-                        for (Order order : incompleteOrders)
-                            if (order.getOrderID() == orderID)
-                                db_conn.cancelOrder(order);
-                    }
+                    orderToCancel = findOrder(orderID, incompleteOrders);
                 }
-            } else {
-                System.out.println("Returning to menu...");
-                System.out.println("-------------------------------------");
+                if (orderID != 0) {
+                    System.out.println("Cancelling order: " + orderID);
+                    db_conn.cancelOrder(orderToCancel);
+                } else {
+                    System.out.println("Returning to menu...");
+                    System.out.println("-------------------------------------");
+                }
             }
         } else {
+            System.out.println("No incomplete orders.");
             System.out.println("Returning to menu...");
             System.out.println("-------------------------------------");
         }
     }
 
-    public boolean checkCancelOrder(int orderID, List<Order> incompleteOrders) {
+    public Order findOrder(int orderID, List<Order> incompleteOrders) {
         for (Order order : incompleteOrders) {
             if (order.getOrderID() == orderID) {
-                return true;
+                return order;
             }
         }
-        return false;
+        return null;
     }
 
     /** General use **/
