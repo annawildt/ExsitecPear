@@ -11,21 +11,12 @@ public class Order {
     private StorageUnit storageUnit;
     private String status;
 
-    public Order(String userID, java.sql.Date date, Product product, int amount, StorageUnit storageUnit) {
-        this.userID = userID;
-        this.date = date;
-        this.product = product;
-        this.amount = amount;
-        this.storageUnit = storageUnit;
+    public Order (String userID, java.sql.Date date, Product product, int amount, StorageUnit storageUnit) {
+        this(0, userID, date, product, amount, storageUnit);
     }
 
     public Order(int orderID, String userID, Date date, Product product, int amount, StorageUnit storageUnit) {
-        this.orderID = orderID;
-        this.userID = userID;
-        this.date = date;
-        this.product = product;
-        this.amount = amount;
-        this.storageUnit = storageUnit;
+        this(orderID, userID, date, product, amount, storageUnit, "None");
     }
 
     public Order(int orderID, String userID, Date date, Product product, int amount, StorageUnit storageUnit, String status) {

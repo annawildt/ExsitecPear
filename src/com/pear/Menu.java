@@ -285,7 +285,6 @@ public class Menu {
             System.out.println("Please enter a valid number.");
             userInputInteger();
         }
-        userInput.close();
         return inputNumber;
     }
 
